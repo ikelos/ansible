@@ -90,9 +90,10 @@ options:
     description:
       - The state of module
       - The 'forcereinstall' option is only available in Ansible 2.1 and above.
+      - The 'downloaded' option is only available in Ansible 2.3 and above.
     required: false
     default: present
-    choices: [ "present", "absent", "latest", "forcereinstall" ]
+    choices: [ "present", "absent", "latest", "forcereinstall", "downloaded" ]
   extra_args:
     description:
       - Extra arguments passed to pip.
@@ -133,6 +134,10 @@ options:
     version_added: "2.1"
     required: false
     default: null
+  dest:
+    description:
+      - The destination path to which packages are to be downloaded.  This 
+        option is only relevant when state is 'downloaded'.
 
 notes:
    - Please note that virtualenv (U(http://www.virtualenv.org/)) must be
@@ -213,6 +218,11 @@ EXAMPLES = '''
     name: bottle
     umask: 0022
   become: True
+
+# Download (Bottle) package files to a specific path
+- pip:
+    name: bottle
+    state: downloaded
 '''
 
 import tempfile
@@ -385,6 +395,7 @@ def main():
         absent='uninstall -y',
         latest='install -U',
         forcereinstall='install -U --force-reinstall',
+        downloaded='download',
     )
 
     module = AnsibleModule(
@@ -403,6 +414,7 @@ def main():
             chdir=dict(type='path'),
             executable=dict(),
             umask=dict(),
+            dest=dict(type='path'),
         ),
         required_one_of=[['name', 'requirements']],
         mutually_exclusive=[['name', 'requirements'], ['executable', 'virtualenv']],
@@ -417,6 +429,7 @@ def main():
     virtualenv_python = module.params['virtualenv_python']
     chdir = module.params['chdir']
     umask = module.params['umask']
+    dest = module.params['dest']
 
     if umask and not isinstance(umask, int):
         try:
@@ -506,6 +519,9 @@ def main():
                 args_list.append('-e')
                 # Ok, we will reconstruct the option string
                 extra_args = ' '.join(args_list)
+
+        if state == 'downloaded' and dest:
+            cmd += '--dest %s' % dest
 
         if extra_args:
             cmd += ' %s' % extra_args
